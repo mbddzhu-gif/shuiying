@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Resvg } from '@resvg/resvg-js'
@@ -11,7 +11,23 @@ const publicDir = path.join(rootDir, 'public')
 
 await mkdir(publicDir, { recursive: true })
 
-const svg = `<?xml version="1.0" encoding="UTF-8"?>
+const sourcePngPath = path.join(publicDir, 'favicon-source.png')
+let svg
+
+try {
+  const png = await readFile(sourcePngPath)
+  const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  if (png.length < pngMagic.length || !png.subarray(0, pngMagic.length).equals(pngMagic)) {
+    throw new Error('favicon-source.png is not a valid PNG')
+  }
+  const base64 = png.toString('base64')
+  svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <image href="data:image/png;base64,${base64}" x="0" y="0" width="512" height="512" preserveAspectRatio="xMidYMid meet" />
+</svg>
+`
+} catch {
+  svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="g" x1="96" y1="144" x2="416" y2="368" gradientUnits="userSpaceOnUse">
@@ -28,6 +44,7 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
   </g>
 </svg>
 `
+}
 
 await writeFile(path.join(publicDir, 'favicon.svg'), svg, 'utf8')
 
