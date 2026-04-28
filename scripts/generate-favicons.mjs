@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Resvg } from '@resvg/resvg-js'
 import pngToIco from 'png-to-ico'
+import { PNG } from 'pngjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -20,7 +21,54 @@ try {
   if (png.length < pngMagic.length || !png.subarray(0, pngMagic.length).equals(pngMagic)) {
     throw new Error('favicon-source.png is not a valid PNG')
   }
-  const base64 = png.toString('base64')
+  const decoded = PNG.sync.read(png)
+  const { width, height, data } = decoded
+
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const a = data[(y * width + x) * 4 + 3]
+      if (a > 10) {
+        if (x < minX) minX = x
+        if (y < minY) minY = y
+        if (x > maxX) maxX = x
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+
+  if (maxX < 0 || maxY < 0) {
+    throw new Error('favicon-source.png has no visible pixels')
+  }
+
+  const pad = Math.max(2, Math.round(Math.max(width, height) * 0.04))
+  minX = Math.max(0, minX - pad)
+  minY = Math.max(0, minY - pad)
+  maxX = Math.min(width - 1, maxX + pad)
+  maxY = Math.min(height - 1, maxY + pad)
+
+  const cropW = maxX - minX + 1
+  const cropH = maxY - minY + 1
+  const side = Math.max(cropW, cropH)
+  const square = new PNG({ width: side, height: side, fill: true })
+  square.data.fill(0)
+
+  const offsetX = Math.floor((side - cropW) / 2)
+  const offsetY = Math.floor((side - cropH) / 2)
+
+  for (let y = 0; y < cropH; y++) {
+    const srcStart = ((minY + y) * width + minX) * 4
+    const srcEnd = srcStart + cropW * 4
+    const dstStart = ((offsetY + y) * side + offsetX) * 4
+    data.copy(square.data, dstStart, srcStart, srcEnd)
+  }
+
+  const squareBuf = PNG.sync.write(square)
+  const base64 = squareBuf.toString('base64')
   svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <image href="data:image/png;base64,${base64}" x="0" y="0" width="512" height="512" preserveAspectRatio="xMidYMid meet" />
