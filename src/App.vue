@@ -27,14 +27,15 @@ const batchProcessing = ref(false);
 const batchProgress = ref(0);
 const batchTotal = ref(0);
 const isDragOver = ref(false);
+const isSingleDragOver = ref(false);
 
-// 水印参数（共用）
-const watermarkText = ref('水印文字');
-const watermarkSize = ref(30);
-const watermarkOpacity = ref(50);
-const watermarkColor = ref('#ffffff');
-const watermarkSpacingX = ref(80);
-const watermarkSpacingY = ref(60);
+// 水印参数（共用）—— 默认设置：黑石视觉 / 200px密度 / 黑色 / 50px / 25%
+const watermarkText = ref('黑石视觉');
+const watermarkSize = ref(50);
+const watermarkOpacity = ref(25);
+const watermarkColor = ref('#000000');
+const watermarkSpacingX = ref(200);
+const watermarkSpacingY = ref(200);
 const watermarkAngle = ref(-30);
 
 // 导出参数（共用）
@@ -171,16 +172,39 @@ const getExtension = (format: string): string => {
 
 // ========== 单图模式 ==========
 
+// 加载单个文件到单图预览
+const loadSingleFile = (file: File) => {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    singleImageUrl.value = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+};
+
 const handleSingleUpload = (event: Event) => {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0];
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      singleImageUrl.value = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    loadSingleFile(target.files[0]);
   }
+};
+
+// 单图模式拖拽上传
+const handleSingleDrop = (event: DragEvent) => {
+  event.preventDefault();
+  isSingleDragOver.value = false;
+  if (event.dataTransfer?.files && event.dataTransfer.files[0]) {
+    loadSingleFile(event.dataTransfer.files[0]);
+  }
+};
+
+const handleSingleDragOver = (event: DragEvent) => {
+  event.preventDefault();
+  isSingleDragOver.value = true;
+};
+
+const handleSingleDragLeave = () => {
+  isSingleDragOver.value = false;
 };
 
 const onSingleImageLoad = () => {
@@ -385,9 +409,19 @@ onMounted(() => {
 
     <!-- ========== 单图模式 ========== -->
     <template v-if="mode === 'single'">
-      <div class="upload-section">
+      <!-- 拖拽上传区域 -->
+      <div
+        class="drop-zone"
+        :class="{ 'drag-over': isSingleDragOver }"
+        @drop="handleSingleDrop"
+        @dragover="handleSingleDragOver"
+        @dragleave="handleSingleDragLeave"
+      >
         <input type="file" id="single-upload" accept="image/*" @change="handleSingleUpload" class="file-input" />
-        <label for="single-upload" class="upload-label">选择图片</label>
+        <label for="single-upload" class="drop-zone-label">
+          <span class="drop-icon">🖼️</span>
+          <span>点击或拖拽图片到此处上传</span>
+        </label>
       </div>
 
       <div class="editor-section">
@@ -645,27 +679,8 @@ h1 {
   color: white;
 }
 
-.upload-section {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
 .file-input {
   display: none;
-}
-
-.upload-label {
-  display: inline-block;
-  padding: 10px 24px;
-  background-color: #4CAF50;
-  color: white;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.upload-label:hover {
-  background-color: #45a049;
 }
 
 .drop-zone {
